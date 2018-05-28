@@ -1,0 +1,2 @@
+# GreenHouse
+This project is a partially autonomous indoor greenhouse for plant growth and data collection. Only maintenance needed will be filling up the reservoir with water and cutting down the plants. Ardiuno and Raspberry pi are used. Ardiuno is used for inputing the sensors and the pi is used to collect and run the Arduino. Sensors used: DHT11 Temperature sensor, DS1307 clock sensor, two relays for solenoid and lighting, and soil sensor.
