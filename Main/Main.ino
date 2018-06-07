@@ -16,8 +16,10 @@ DS3231  rtc(SDA, SCL);
 int moistPinZero = A0;  
 int moistPinOne = A1; 
  
-//Declare DHT senor
+//Declare DHT senor and humid and temp values
 dht DHT;
+float humid;
+float temp;
 
 //Relay States
 int relayStateLight = LOW;
@@ -28,11 +30,14 @@ const int lowMoist = 43;
 // Init a Time-data structure
 Time  t;
 
-//timer time
+//timer times and state
 const int OnHour = 12;
 const int OnMin = 45;
 const int OffHour = 20;
 const int OffMin = 46;
+boolean onTime = false;
+boolean offTime = false;
+
 
 //I2C pins declaration
 LiquidCrystal_I2C lcd(0x3F, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE); 
@@ -46,8 +51,10 @@ int soilPercentOne = 0;
 int finalPercent = 0;
 
 void setup() {
+  
   lcd.begin(16,2);//Defining 16 columns and 2 rows of lcd display
   lcd.backlight();//To Power ON the back light
+  
   //opening up the pinmodes
   pinMode(RELAY_PIN_PUMP, OUTPUT); 
   pinMode(RELAY_PIN_LIGHT, OUTPUT);
@@ -80,23 +87,14 @@ void loop() {
   //Callingchecking if relay needs to be called
   relayCall();
 
+  //Checking if lighting is needed
+  callTime();
+
   //Printing data to serial port
   printValuesToSerial();
-
-  printValuesToLCD();
-
-
-   // Get data from the DS3231
-  t = rtc.getTime();
-//Setting alarm/timer at every 2:32:53pm, 
-//in other words you can insert t.dow for every Thursday?, t.date for specific date?  
- if(t.hour == OnHour && t.min == OnMin){
-    digitalWrite(RELAY_PIN_LIGHT, HIGH); 
-    }
-    
-    else if(t.hour == OffHour && t.min == OffMin){
-      digitalWrite(RELAY_PIN_LIGHT, LOW); 
-    }
+  //Printing data to LCD
+  lcdClock();
+  
 }
 
 int convertToPercent(int value){
@@ -104,6 +102,23 @@ int convertToPercent(int value){
   int percentValue = 0;
   percentValue = map(value, 1015, 0, 0, 100);
   return percentValue;
+}
+
+void callTime(){
+  // Get data from the DS3231
+  t = rtc.getTime();
+  
+  //Setting timer every onHour to offHour,   
+  if(t.hour == OnHour && t.min == OnMin){
+    digitalWrite(RELAY_PIN_LIGHT, HIGH); 
+    onTime = true;
+    }
+    
+   else if(t.hour == OffHour && t.min == OffMin){
+     digitalWrite(RELAY_PIN_LIGHT, LOW); 
+     offTime = false;
+     }
+  
 }
 void relayCall(){
   //if the moisture level is belore the lotMoist, the pump relay will turn on
@@ -120,27 +135,74 @@ void relayCall(){
 void dhtTemp(){
   //using dht lib to get temp and humid data
   int chk = DHT.read11(DHT11_PIN);
+  humid = DHT.humidity;
+  temp = DHT.temperature;
 }
 
 void printValuesToSerial(){
 
-  Serial.print("\nPercent: ");
   Serial.print(finalPercent);
-  Serial.print("Temperature = ");
-  Serial.println(DHT.temperature);
-  Serial.print("Humidity = ");
-  Serial.println(DHT.humidity);
+  Serial.print(" , ");
+  Serial.println(humid);
   delay(2000);
 }
 
-
-
-void printValuesToLCD(){ 
-    lcd.setCursor(0,0); //Defining positon to write from first row,first column .
-    lcd.print(t.hour);
-    lcd.print(" hour(s), ");
-    lcd.setCursor(0,1);  //Defining positon to write from second row,first column .
-    lcd.print(t.min);
-    lcd.print(" minute(s)");
-
+void lcdClock(){ 
+  lcd.clear();
+  lcd.setCursor(0,0);  //Defining positon to write from first row,first column .
+  lcd.print(t.hour);
+  lcd.print(" hour(s), ");
+  lcd.setCursor(0,1);  //Defining positon to write from second row,first column .
+  lcd.print(t.min);
+  lcd.print(" minute(s)");
 }
+
+void lcdTimer(){
+  //Timer print values depending if it is on off or on hour
+    if(onTime == true){
+      lcd.clear();
+      int ValueOn = 0;
+      ValueOn = t.hour - OnHour;
+      lcd.setCursor(0,0);
+      lcd.print(ValueOn);
+      lcd.print(" hour(s) left");
+    }
+    //Off Timer
+    if(offTime == false){
+      lcd.clear();
+      int ValueOff = 0;
+      ValueOff = t.hour - OffHour;
+      lcd.setCursor(0,0);
+      lcd.print(ValueOff);
+      lcd.print(" hour(s) left");
+    }
+}
+
+void lcdTime(){
+  lcd.clear();
+  // Send outside temperature
+  lcd.setCursor(0,0);
+  lcd.print("Temp outside:");
+  lcd.print(rtc.getTemp());
+  lcd.println(" C");
+  // Send inside temperature
+  lcd.setCursor(0,1);
+  lcd.print("Temp outside:");
+  lcd.print(temp);
+  lcd.println(" C");
+}
+
+void lcdData(){
+  //humid and moisture vales
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Humidity: ");
+  lcd.print(humid);
+  lcd.print("%");
+  lcd.setCursor(0,1);
+  lcd.print("Soil Moist: ");
+  lcd.print(finalPercent);
+  lcd.print("%");
+  
+}
+
