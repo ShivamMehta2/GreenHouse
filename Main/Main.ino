@@ -34,13 +34,26 @@ Time  t;
 const int OnHour = 12;
 const int OnMin = 45;
 const int OffHour = 20;
-const int OffMin = 46;
-boolean onTime = false;
-boolean offTime = false;
+const int OffMin = 00;
+boolean lcdTimeRemain = true;
 
 
 //I2C pins declaration
 LiquidCrystal_I2C lcd(0x3F, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE); 
+
+//LCD refresh
+long previousLCDMillis = 0;    // for LCD screen update
+long lcdInterval = 4000;
+// screen to show 
+int screen = 0;    
+int screenMax = 3;
+bool screenChanged = true;   // initially we have a new screen,  by definition 
+// defines of the screens to show
+#define TEMP 0
+#define CLOCK       1
+#define DATA              2
+#define TIMER                     3
+
 
 
 //Analog read of the soil moisture
@@ -65,7 +78,8 @@ void setup() {
   //Opening serial port    
   Serial.begin(9600);
 
-  
+  //Welcome screen
+  lcdWelcome();
 }
 
 void loop() {
@@ -85,7 +99,7 @@ void loop() {
   dhtTemp();
   
   //Callingchecking if relay needs to be called
-  relayCall();
+  callPump();
 
   //Checking if lighting is needed
   callTime();
@@ -93,7 +107,44 @@ void loop() {
   //Printing data to serial port
   printValuesToSerial();
   //Printing data to LCD
-  lcdClock();
+
+  //millis function
+  unsigned long currentLCDMillis = millis();
+
+  //lcd display switch
+  if(currentLCDMillis - previousLCDMillis > lcdInterval){
+    previousLCDMillis = currentLCDMillis; 
+    screen++;
+    if (screen > screenMax) screen = 0;  // all screens done? => start over
+    screenChanged = true; 
+  }
+
+  // debug Serial.println(screen);
+
+  // DISPLAY CURRENT SCREEN
+
+  //-- only update the screen if the screen is changed. 
+  if (screenChanged) {
+    screenChanged = false; // reset for next iteration
+    switch(screen) {
+    case TEMP: 
+      lcdTemp();
+      break;
+    case DATA: 
+      lcdData();
+      break;
+    case CLOCK:
+      lcdClock();
+      break;
+    case TIMER:
+      lcdTimer();
+      break;
+    default:
+      showError();
+      break;
+    }
+  }
+
   
 }
 
@@ -111,16 +162,16 @@ void callTime(){
   //Setting timer every onHour to offHour,   
   if(t.hour == OnHour && t.min == OnMin){
     digitalWrite(RELAY_PIN_LIGHT, HIGH); 
-    onTime = true;
+    lcdTimeRemain = true;
     }
     
    else if(t.hour == OffHour && t.min == OffMin){
      digitalWrite(RELAY_PIN_LIGHT, LOW); 
-     offTime = false;
+     lcdTimeRemain = false;
      }
   
 }
-void relayCall(){
+void callPump(){
   //if the moisture level is belore the lotMoist, the pump relay will turn on
   if(finalPercent > lowMoist){
     digitalWrite(RELAY_PIN_PUMP, HIGH); 
@@ -149,47 +200,54 @@ void printValuesToSerial(){
 
 void lcdClock(){ 
   lcd.clear();
-  lcd.setCursor(0,0);  //Defining positon to write from first row,first column .
+  lcd.setCursor(0,0); 
+  lcd.print("Current Time:"); 
+  lcd.setCursor(0,1);  
   lcd.print(t.hour);
-  lcd.print(" hour(s), ");
-  lcd.setCursor(0,1);  //Defining positon to write from second row,first column .
+  lcd.print(":");
   lcd.print(t.min);
-  lcd.print(" minute(s)");
+  lcd.print(":");
+  lcd.print(t.sec);
 }
 
 void lcdTimer(){
   //Timer print values depending if it is on off or on hour
-    if(onTime == true){
+    if(lcdTimeRemain == true){
       lcd.clear();
       int ValueOn = 0;
-      ValueOn = t.hour - OnHour;
+      ValueOn = t.hour - OffHour;
       lcd.setCursor(0,0);
+      lcd.print("Light off in:");
+      lcd.setCursor(0,1);
       lcd.print(ValueOn);
-      lcd.print(" hour(s) left");
+      lcd.print(" hour(s)");
     }
+    
     //Off Timer
-    if(offTime == false){
+    if(lcdTimeRemain == false){
       lcd.clear();
       int ValueOff = 0;
-      ValueOff = t.hour - OffHour;
+      ValueOff = t.hour - OnHour;
       lcd.setCursor(0,0);
+       lcd.print("Light on in:");
+      lcd.setCursor(0,1);
       lcd.print(ValueOff);
-      lcd.print(" hour(s) left");
+      lcd.print(" hour(s)");
     }
 }
 
-void lcdTime(){
+void lcdTemp(){
   lcd.clear();
   // Send outside temperature
   lcd.setCursor(0,0);
-  lcd.print("Temp outside:");
+  lcd.print("TempOut: ");
   lcd.print(rtc.getTemp());
   lcd.println(" C");
   // Send inside temperature
   lcd.setCursor(0,1);
-  lcd.print("Temp outside:");
+  lcd.print("TempIn: ");
   lcd.print(temp);
-  lcd.println(" C");
+  lcd.println(" C ");
 }
 
 void lcdData(){
@@ -204,5 +262,21 @@ void lcdData(){
   lcd.print(finalPercent);
   lcd.print("%");
   
+}
+void lcdWelcome(){
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Sensors are");
+  lcd.setCursor(0,1);
+  lcd.print("Initializing");
+  delay(5000);
+ 
+}
+void showError(){
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("ERROR");
+  lcd.setCursor(0,1);
+  lcd.print("CHECK SYSTEM");
 }
 
